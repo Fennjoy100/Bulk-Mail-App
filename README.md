@@ -1,71 +1,54 @@
-BULK MAIL APP
+# BULK MAIL APP
+
 A full-stack bulk email sending application built using JavaScript, Node.js, Express, and SMTP integration. This project focuses on efficient bulk email delivery, CSV-based recipient management, optional MongoDB integration, and responsive UI design.
 
-🚀 Live Demo
-Bulk Mail App Live Demo
+## 🚀 Live Demo
 
-📌 Project Overview
+https://bulk-mail-app-two.vercel.app
+
+## 📌 Project Overview
+
 BULK MAIL APP is a modern full-stack application that showcases:
 
-Bulk email sending using SMTP services
-
-CSV upload support for multiple recipients
-
-Responsive and clean user interface
-
-Optional MongoDB database integration
-
-Email sending history and fallback handling
-
-Real-time status and error handling
-
-Full-stack deployment using Vercel
+- Bulk email sending using SMTP services
+- CSV upload support for multiple recipients
+- Responsive and clean user interface
+- Optional MongoDB database integration
+- Email sending history and fallback handling
+- Real-time status and error handling
+- Full-stack deployment using Vercel
 
 This project demonstrates strong fundamentals in backend API development, email automation workflows, file handling, deployment, and full-stack JavaScript architecture.
 
-🛠 Technologies Used
-React / Frontend JavaScript: UI development
+## 🛠 Technologies Used
 
-Node.js: Backend runtime
+- React / Frontend JavaScript: UI development
+- Node.js: Backend runtime
+- Express.js: API and server handling
+- MongoDB: Optional database storage
+- Nodemailer / SMTP: Email sending service
+- CSS3: Responsive styling
+- Vercel: Deployment platform
 
-Express.js: API and server handling
+## ✨ Features
 
-MongoDB: Optional database storage
+### Bulk Email Sending
 
-Nodemailer / SMTP: Email sending service
+- Send emails to multiple recipients at once
+- SMTP-based real email delivery
+- Fast and efficient mail processing
 
-CSS3: Responsive styling
+### CSV Upload Support
 
-Vercel: Deployment platform
+- Upload recipient lists using CSV files
+- Automatic parsing and recipient extraction
 
-✨ Features
-🔹 Bulk Email Sending
-Send emails to multiple recipients at once
+### Error Handling & Fallbacks
 
-SMTP-based real email delivery
+- Safe fallback behavior when MongoDB is unavailable
+- Health monitoring and status handling
 
-Fast and efficient mail processing
+### Responsive UI
 
-🔹 CSV Upload Support
-Upload recipient lists using CSV files
-
-Automatic parsing and recipient extraction
-
-🔹 Error Handling & Fallbacks
-Safe fallback behavior when MongoDB is unavailable
-
-Health monitoring and status handling
-
-🔹 Responsive UI
-Clean and user-friendly interface
-
-Responsive layout for different screen sizes
-
-
-
-
-
-
-
-
-Sources
+- Clean and user-friendly interface
+- Responsive layout for different screen sizes
