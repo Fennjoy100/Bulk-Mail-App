@@ -3,8 +3,8 @@ const dotenv = require('dotenv');
 const express = require('express');
 const morgan = require('morgan');
 
-const connectToDatabase = require('./db');
-const { sendBulkEmail } = require('./mail');
+const { connectToDatabase, isDatabaseConfigured } = require('./db');
+const { isDemoModeEnabled, sendBulkEmail } = require('./mail');
 const EmailLog = require('./models/EmailLog');
 
 dotenv.config();
@@ -61,8 +61,22 @@ function validateEmailPayload({ subject, body, recipients }) {
 
 app.get('/api/health', async (_req, res) => {
   try {
+    if (!isDatabaseConfigured()) {
+      return res.json({
+        ok: true,
+        message: 'API is healthy. MongoDB is not configured, so email history is disabled.',
+        databaseEnabled: false,
+        mailMode: isDemoModeEnabled() ? 'demo' : 'smtp',
+      });
+    }
+
     await connectToDatabase();
-    res.json({ ok: true, message: 'API and database connection are healthy.' });
+    res.json({
+      ok: true,
+      message: 'API and database connection are healthy.',
+      databaseEnabled: true,
+      mailMode: isDemoModeEnabled() ? 'demo' : 'smtp',
+    });
   } catch (error) {
     res.status(500).json({ ok: false, message: error.message });
   }
@@ -70,6 +84,14 @@ app.get('/api/health', async (_req, res) => {
 
 app.get('/api/emails/history', async (_req, res) => {
   try {
+    if (!isDatabaseConfigured()) {
+      return res.json({
+        ok: true,
+        history: [],
+        message: 'MongoDB is not configured, so email history is unavailable.',
+      });
+    }
+
     await connectToDatabase();
 
     const history = await EmailLog.find().sort({ createdAt: -1 }).limit(20).lean();
@@ -83,8 +105,6 @@ app.get('/api/emails/history', async (_req, res) => {
 
 app.post('/api/emails/send', async (req, res) => {
   try {
-    await connectToDatabase();
-
     const recipients = sanitizeRecipients(req.body.recipients || []);
     const payload = {
       subject: req.body.subject,
@@ -100,21 +120,39 @@ app.post('/api/emails/send', async (req, res) => {
 
     const result = await sendBulkEmail(payload);
 
-    const savedEmail = await EmailLog.create({
+    let savedEmail = {
       ...payload,
       ...result,
-    });
+      _id: 'local-only',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-    const responseMessage =
+    let responseMessage =
       result.status === 'sent'
         ? `Email delivered to ${result.successCount} recipients.`
         : result.status === 'partial'
           ? `Email delivered to ${result.successCount} recipients with ${result.failureCount} failures.`
           : 'Email delivery failed for all recipients.';
 
+    if (result.deliveryMode === 'demo') {
+      responseMessage = `${responseMessage} Demo mode is active, so no real emails were sent.`;
+    }
+
+    if (isDatabaseConfigured()) {
+      await connectToDatabase();
+      savedEmail = await EmailLog.create({
+        ...payload,
+        ...result,
+      });
+    } else {
+      responseMessage = `${responseMessage} MongoDB is not configured, so this email was not saved to history.`;
+    }
+
     return res.status(result.status === 'failed' ? 500 : 200).json({
       ok: result.status !== 'failed',
       message: responseMessage,
+      deliveryMode: result.deliveryMode,
       email: savedEmail,
     });
   } catch (error) {

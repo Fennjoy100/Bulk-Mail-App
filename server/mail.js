@@ -1,19 +1,26 @@
 const nodemailer = require('nodemailer');
 
-function getTransporter() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS } = process.env;
+function isSmtpConfigured() {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+  return Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
+}
 
-  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
+function isDemoModeEnabled() {
+  return process.env.SMTP_DEMO_MODE === 'true' || !isSmtpConfigured();
+}
+
+function getTransporter() {
+  if (!isSmtpConfigured()) {
     throw new Error('SMTP configuration is incomplete.');
   }
 
   return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT),
-    secure: SMTP_SECURE === 'true',
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT),
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
-      user: SMTP_USER,
-      pass: SMTP_PASS,
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
     },
   });
 }
@@ -36,6 +43,22 @@ function bodyToHtml(body) {
 }
 
 async function sendBulkEmail({ subject, body, recipients }) {
+  if (isDemoModeEnabled()) {
+    return {
+      status: 'sent',
+      successCount: recipients.length,
+      failureCount: 0,
+      failedRecipients: [],
+      errorMessages: [],
+      deliveryMode: 'demo',
+      preview: {
+        subject,
+        body,
+        recipients,
+      },
+    };
+  }
+
   const transporter = getTransporter();
   const from = process.env.MAIL_FROM || process.env.SMTP_USER;
 
@@ -75,9 +98,12 @@ async function sendBulkEmail({ subject, body, recipients }) {
     failureCount,
     failedRecipients,
     errorMessages,
+    deliveryMode: 'smtp',
   };
 }
 
 module.exports = {
+  isDemoModeEnabled,
+  isSmtpConfigured,
   sendBulkEmail,
 };

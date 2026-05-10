@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import './App.css'
 
 const initialForm = {
@@ -18,58 +18,113 @@ function parseRecipients(value) {
   )
 }
 
-function formatDate(value) {
-  return new Intl.DateTimeFormat('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value))
+function extractEmailsFromText(value) {
+  return Array.from(
+    new Set(
+      (value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [])
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  )
 }
 
 function App() {
   const [form, setForm] = useState(initialForm)
-  const [history, setHistory] = useState([])
   const [status, setStatus] = useState({ type: '', message: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isHistoryLoading, setIsHistoryLoading] = useState(true)
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef(null)
 
   const recipientList = useMemo(() => parseRecipients(form.recipients), [form.recipients])
-
-  async function loadHistory() {
-    try {
-      const response = await fetch('/api/emails/history')
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Unable to fetch email history.')
-      }
-
-      setHistory(data.history)
-    } catch (error) {
-      setStatus({
-        type: 'error',
-        message: error.message || 'Unable to fetch email history.',
-      })
-    } finally {
-      setIsHistoryLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    async function fetchHistoryOnMount() {
-      await loadHistory()
-    }
-
-    fetchHistoryOnMount()
-  }, [])
-
-  async function handleRefreshHistory() {
-    setIsHistoryLoading(true)
-    await loadHistory()
-  }
 
   function handleChange(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
+  }
+
+  async function handleFileSelection(event) {
+    const [file] = event.target.files || []
+
+    if (!file) {
+      return
+    }
+
+    const fileText = await file.text()
+    const extractedEmails = extractEmailsFromText(fileText)
+
+    if (extractedEmails.length === 0) {
+      setStatus({
+        type: 'error',
+        message: 'No valid email addresses were found in the uploaded file.',
+      })
+      return
+    }
+
+    setForm((current) => {
+      const mergedRecipients = Array.from(
+        new Set([...parseRecipients(current.recipients), ...extractedEmails])
+      )
+
+      return {
+        ...current,
+        recipients: mergedRecipients.join(', '),
+      }
+    })
+
+    setStatus({
+      type: 'success',
+      message: `${extractedEmails.length} recipient emails imported from ${file.name}.`,
+    })
+
+    event.target.value = ''
+  }
+
+  function handleDragOver(event) {
+    event.preventDefault()
+    setIsDragging(true)
+  }
+
+  function handleDragLeave(event) {
+    event.preventDefault()
+    setIsDragging(false)
+  }
+
+  async function handleDrop(event) {
+    event.preventDefault()
+    setIsDragging(false)
+
+    const [file] = event.dataTransfer.files || []
+
+    if (!file) {
+      return
+    }
+
+    const fileText = await file.text()
+    const extractedEmails = extractEmailsFromText(fileText)
+
+    if (extractedEmails.length === 0) {
+      setStatus({
+        type: 'error',
+        message: 'No valid email addresses were found in the dropped file.',
+      })
+      return
+    }
+
+    setForm((current) => {
+      const mergedRecipients = Array.from(
+        new Set([...parseRecipients(current.recipients), ...extractedEmails])
+      )
+
+      return {
+        ...current,
+        recipients: mergedRecipients.join(', '),
+      }
+    })
+
+    setStatus({
+      type: 'success',
+      message: `${extractedEmails.length} recipient emails imported from ${file.name}.`,
+    })
   }
 
   async function handleSubmit(event) {
@@ -110,7 +165,6 @@ function App() {
         message: data.message,
       })
       setForm(initialForm)
-      setHistory((current) => [data.email, ...current].slice(0, 20))
     } catch (error) {
       setStatus({
         type: 'error',
@@ -128,23 +182,8 @@ function App() {
           <p className="eyebrow">Bulk Mail App</p>
           <h1>Send campaign emails from one dashboard.</h1>
           <p className="hero-copy">
-            Compose a message, target multiple recipients, and keep a delivery history backed by
-            MongoDB.
+            Compose a message, import recipients, and send bulk emails from a single screen.
           </p>
-        </div>
-        <div className="stats-grid">
-          <article>
-            <strong>{recipientList.length}</strong>
-            <span>Recipients ready</span>
-          </article>
-          <article>
-            <strong>{history.length}</strong>
-            <span>Recent campaigns</span>
-          </article>
-          <article>
-            <strong>Vercel</strong>
-            <span>Ready deployment</span>
-          </article>
         </div>
       </section>
 
@@ -198,48 +237,40 @@ function App() {
             </button>
           </div>
 
+          <div className="stats-grid form-stats-grid">
+            <article>
+              <strong>{recipientList.length}</strong>
+              <span>Recipients ready</span>
+            </article>
+            <article
+              className={`upload-card ${isDragging ? 'drag-active' : ''}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={fileInputRef}
+                className="file-input"
+                type="file"
+                accept=".txt,.csv"
+                onChange={handleFileSelection}
+              />
+              <strong>Import recipients</strong>
+              <button
+                type="button"
+                className="upload-dropzone"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Drag and Drop your file here
+              </button>
+              <span>Upload a `.txt` or `.csv` file with email addresses.</span>
+            </article>
+          </div>
+
           {status.message ? (
             <div className={`status-banner ${status.type || 'info'}`}>{status.message}</div>
           ) : null}
         </form>
-
-        <section className="panel history-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="section-tag">History</p>
-              <h2>Sent email records</h2>
-            </div>
-            <button type="button" className="secondary-button" onClick={handleRefreshHistory}>
-              Refresh
-            </button>
-          </div>
-
-          {isHistoryLoading ? <p>Loading history...</p> : null}
-
-          {!isHistoryLoading && history.length === 0 ? (
-            <p>No email campaigns found yet. Send your first one from the form.</p>
-          ) : null}
-
-          <div className="history-list">
-            {history.map((item) => (
-              <article className="history-card" key={item._id}>
-                <div className="history-top-row">
-                  <h3>{item.subject}</h3>
-                  <span className={`status-pill ${item.status}`}>{item.status}</span>
-                </div>
-                <p className="history-meta">{formatDate(item.createdAt)}</p>
-                <p className="history-body">{item.body}</p>
-                <p className="history-meta">
-                  {item.successCount} sent, {item.failureCount} failed
-                </p>
-                <p className="history-recipients">{item.recipients.join(', ')}</p>
-                {item.failedRecipients?.length ? (
-                  <p className="history-error">Failed: {item.failedRecipients.join(', ')}</p>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        </section>
       </section>
     </main>
   )
